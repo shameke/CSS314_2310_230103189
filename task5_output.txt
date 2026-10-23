@@ -1,0 +1,17 @@
+TASK 5: THREAD OVERSUBSCRIPTION THRESHOLD
+Student ID: 230103189
+Physical cores: 14
+Logical CPUs: 20
+Total tasks: 10000
+Hashes per task: 500
+
+Pool Size | Execution Time (ms) | Speedup | Status
+1 | 4654.02 ms | 1.00x | BASELINE
+7 | 4243.85 ms | 1.10x | NO REGRESSION
+14 | 4204.76 ms | 1.11x | NO REGRESSION
+28 | 4333.41 ms | 1.07x | FIRST DEGRADATION
+56 | 4295.07 ms | 1.08x | NO REGRESSION
+224 | 4752.16 ms | 0.98x | SLOWER
+256 | 4905.20 ms | 0.95x | SLOWER
+
+First observed degradation: pool size 28

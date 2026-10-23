@@ -1,0 +1,17 @@
+TASK 2: PRNG STATE BOTTLENECK
+Student ID: 230103189
+Logical CPUs: 20
+Threads: 4
+Total points: 40000000
+
+SHARED PRNG (mutex)
+Computed pi: 3.1416918000
+Absolute error: 0.0000991464
+Wall time: 332.31 ms
+
+INDEPENDENT PRNGs
+Computed pi: 3.1417686000
+Absolute error: 0.0001759464
+Wall time: 103.59 ms
+
+Speedup factor: 3.21x

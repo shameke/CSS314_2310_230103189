@@ -462,187 +462,355 @@
 # =====================================================================================================
 # =======================================Task4==============================================================
 
-import multiprocessing as mp
-from multiprocessing import shared_memory
-from statistics import median
-from time import perf_counter
-from pathlib import Path
+# import multiprocessing as mp
+# from multiprocessing import shared_memory
+# from statistics import median
+# from time import perf_counter
+# from pathlib import Path
+# import os
+# import numpy as np
+#
+# STUDENT_ID = 230103189
+# ARRAY_SIZES = [100_000, 1_000_000, 10_000_000]
+# REPEATS = 3
+#
+#
+# def receiver(input_queue, result_queue):
+#     """Receive arrays using IPC or shared memory."""
+#     while True:
+#         message = input_queue.get()
+#
+#         if message is None:
+#             break
+#
+#         mode, payload, shape = message
+#
+#         if mode == "ipc":
+#             array = payload
+#             checksum = int(np.sum(array, dtype=np.int64))
+#
+#         elif mode == "shared":
+#             shm = shared_memory.SharedMemory(name=payload)
+#             try:
+#                 array = np.ndarray(
+#                     shape, dtype=np.int64, buffer=shm.buf
+#                 )
+#                 checksum = int(np.sum(array, dtype=np.int64))
+#             finally:
+#                 shm.close()
+#
+#         else:
+#             raise ValueError(f"Unknown mode: {mode}")
+#
+#         result_queue.put(checksum)
+#
+#
+# def benchmark_ipc(array, input_queue, result_queue):
+#     """Measure sending a serialized array and receiving its acknowledgement."""
+#     start = perf_counter()
+#
+#     input_queue.put(("ipc", array, None))
+#     received_checksum = result_queue.get()
+#
+#     elapsed_ms = (perf_counter() - start) * 1000
+#     expected_checksum = int(np.sum(array, dtype=np.int64))
+#
+#     assert received_checksum == expected_checksum
+#     return elapsed_ms
+#
+#
+# def benchmark_shared(array, input_queue, result_queue):
+#     """Measure shared-memory allocation, copying, handoff and reading."""
+#     shm = None
+#
+#     try:
+#         start = perf_counter()
+#
+#         shm = shared_memory.SharedMemory(
+#             create=True, size=array.nbytes
+#         )
+#
+#         shared_array = np.ndarray(
+#             array.shape, dtype=np.int64, buffer=shm.buf
+#         )
+#         shared_array[:] = array
+#
+#         input_queue.put(("shared", shm.name, array.shape))
+#         received_checksum = result_queue.get()
+#
+#         elapsed_ms = (perf_counter() - start) * 1000
+#         expected_checksum = int(np.sum(array, dtype=np.int64))
+#
+#         assert received_checksum == expected_checksum
+#         return elapsed_ms
+#
+#     finally:
+#         if shm is not None:
+#             shm.close()
+#             shm.unlink()
+#
+#
+# def main():
+#     ctx = mp.get_context("spawn")
+#     input_queue = ctx.Queue()
+#     result_queue = ctx.Queue()
+#
+#     worker = ctx.Process(
+#         target=receiver,
+#         args=(input_queue, result_queue)
+#     )
+#     worker.start()
+#
+#     results = []
+#
+#     try:
+#         print("=" * 76)
+#         print("TASK 4: MEMORY TRANSFER / IPC OVERHEAD")
+#         print("=" * 76)
+#         print(f"Student ID: {STUDENT_ID}")
+#         print(f"Logical CPUs: {os.cpu_count()}")
+#         print("Mode: CPU-only multiprocessing")
+#         print(f"Measurement: median of {REPEATS} runs")
+#         print("-" * 76)
+#         print(
+#             f"{'Array size':>14} | {'IPC Queue (ms)':>16} | "
+#             f"{'Shared Memory (ms)':>19} | {'Faster path':>12}"
+#         )
+#         print("-" * 76)
+#
+#         for size in ARRAY_SIZES:
+#             rng = np.random.default_rng(STUDENT_ID + size)
+#             array = rng.integers(
+#                 1, 101, size=size, dtype=np.int64
+#             )
+#
+#             ipc_times = []
+#             shared_times = []
+#
+#             for _ in range(REPEATS):
+#                 ipc_times.append(
+#                     benchmark_ipc(array, input_queue, result_queue)
+#                 )
+#                 shared_times.append(
+#                     benchmark_shared(
+#                         array, input_queue, result_queue
+#                     )
+#                 )
+#
+#             ipc_ms = median(ipc_times)
+#             shared_ms = median(shared_times)
+#
+#             if ipc_ms < shared_ms:
+#                 faster = "IPC Queue"
+#             elif shared_ms < ipc_ms:
+#                 faster = "Shared Memory"
+#             else:
+#                 faster = "Equal"
+#
+#             results.append((size, ipc_ms, shared_ms, faster))
+#
+#             print(
+#                 f"{size:>14,} | {ipc_ms:>16.2f} | "
+#                 f"{shared_ms:>19.2f} | {faster:>12}"
+#             )
+#
+#         print("=" * 76)
+#
+#         output_path = Path(__file__).with_name("task4_output.txt")
+#         with output_path.open("w", encoding="utf-8") as file:
+#             file.write("TASK 4: MEMORY TRANSFER / IPC OVERHEAD\n")
+#             file.write(f"Student ID: {STUDENT_ID}\n")
+#             file.write(f"Logical CPUs: {os.cpu_count()}\n")
+#             file.write(f"Measurements per size: {REPEATS}\n")
+#             file.write("Times are medians in milliseconds.\n\n")
+#             file.write(
+#                 "Array size | IPC Queue (ms) | Shared Memory (ms) "
+#                 "| Faster path\n"
+#             )
+#
+#             for size, ipc_ms, shared_ms, faster in results:
+#                 file.write(
+#                     f"{size} | {ipc_ms:.2f} | "
+#                     f"{shared_ms:.2f} | {faster}\n"
+#                 )
+#
+#         print(f"Output saved to: {output_path}")
+#
+#     finally:
+#         input_queue.put(None)
+#         worker.join()
+#         input_queue.close()
+#         result_queue.close()
+#
+#
+# if __name__ == "__main__":
+#     mp.freeze_support()
+#     main()
+# ============================================================================================================================================
+# =====================================================================================================
+# =====================================================================================================
+# =====================================================================================================
+# =======================================Task5==============================================================
+
+
 import os
-import numpy as np
+import time
+import hashlib
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 STUDENT_ID = 230103189
-ARRAY_SIZES = [100_000, 1_000_000, 10_000_000]
-REPEATS = 3
+PHYSICAL_CORES = 14
+TOTAL_TASKS = 10_000
+HASH_ITERATIONS = 500
+
+# Each task hashes a 1 KB payload 500 times
+PAYLOAD = b"A" * 1024
 
 
-def receiver(input_queue, result_queue):
-    """Receive arrays using IPC or shared memory."""
-    while True:
-        message = input_queue.get()
+def cpu_task(task_id):
+    """Perform repeated CPU-bound hashing."""
+    digest = PAYLOAD
 
-        if message is None:
-            break
+    for _ in range(HASH_ITERATIONS):
+        digest = hashlib.sha256(PAYLOAD).digest()
 
-        mode, payload, shape = message
-
-        if mode == "ipc":
-            array = payload
-            checksum = int(np.sum(array, dtype=np.int64))
-
-        elif mode == "shared":
-            shm = shared_memory.SharedMemory(name=payload)
-            try:
-                array = np.ndarray(
-                    shape, dtype=np.int64, buffer=shm.buf
-                )
-                checksum = int(np.sum(array, dtype=np.int64))
-            finally:
-                shm.close()
-
-        else:
-            raise ValueError(f"Unknown mode: {mode}")
-
-        result_queue.put(checksum)
+    return digest[0]
 
 
-def benchmark_ipc(array, input_queue, result_queue):
-    """Measure sending a serialized array and receiving its acknowledgement."""
-    start = perf_counter()
+def run_benchmark(pool_size):
+    """Execute all tasks and measure wall-clock time."""
+    start = time.perf_counter()
 
-    input_queue.put(("ipc", array, None))
-    received_checksum = result_queue.get()
+    with ThreadPoolExecutor(max_workers=pool_size) as executor:
+        results = list(executor.map(cpu_task, range(TOTAL_TASKS)))
 
-    elapsed_ms = (perf_counter() - start) * 1000
-    expected_checksum = int(np.sum(array, dtype=np.int64))
+    elapsed_ms = (time.perf_counter() - start) * 1000
 
-    assert received_checksum == expected_checksum
+    # Check that all tasks completed
+    assert len(results) == TOTAL_TASKS
+
     return elapsed_ms
 
 
-def benchmark_shared(array, input_queue, result_queue):
-    """Measure shared-memory allocation, copying, handoff and reading."""
-    shm = None
-
-    try:
-        start = perf_counter()
-
-        shm = shared_memory.SharedMemory(
-            create=True, size=array.nbytes
-        )
-
-        shared_array = np.ndarray(
-            array.shape, dtype=np.int64, buffer=shm.buf
-        )
-        shared_array[:] = array
-
-        input_queue.put(("shared", shm.name, array.shape))
-        received_checksum = result_queue.get()
-
-        elapsed_ms = (perf_counter() - start) * 1000
-        expected_checksum = int(np.sum(array, dtype=np.int64))
-
-        assert received_checksum == expected_checksum
-        return elapsed_ms
-
-    finally:
-        if shm is not None:
-            shm.close()
-            shm.unlink()
-
-
 def main():
-    ctx = mp.get_context("spawn")
-    input_queue = ctx.Queue()
-    result_queue = ctx.Queue()
+    cores = PHYSICAL_CORES
 
-    worker = ctx.Process(
-        target=receiver,
-        args=(input_queue, result_queue)
-    )
-    worker.start()
+    pool_sizes = [
+        1,
+        max(1, cores // 2),
+        cores,
+        cores * 2,
+        cores * 4,
+        cores * 16,
+        256,
+    ]
 
-    results = []
+    # Remove duplicates while preserving order
+    pool_sizes = list(dict.fromkeys(pool_sizes))
 
-    try:
-        print("=" * 76)
-        print("TASK 4: MEMORY TRANSFER / IPC OVERHEAD")
-        print("=" * 76)
-        print(f"Student ID: {STUDENT_ID}")
-        print(f"Logical CPUs: {os.cpu_count()}")
-        print("Mode: CPU-only multiprocessing")
-        print(f"Measurement: median of {REPEATS} runs")
-        print("-" * 76)
+    print("=" * 90)
+    print("TASK 5: THREAD OVERSUBSCRIPTION THRESHOLD")
+    print("=" * 90)
+    print(f"Student ID       : {STUDENT_ID}")
+    print(f"Physical cores   : {PHYSICAL_CORES}")
+    print(f"Logical CPUs     : {os.cpu_count()}")
+    print(f"Total tasks      : {TOTAL_TASKS:,}")
+    print(f"Hashes per task  : {HASH_ITERATIONS}")
+    print("-" * 90)
+
+    timings = []
+    baseline_time = None
+
+    for pool_size in pool_sizes:
+        elapsed_ms = run_benchmark(pool_size)
+
+        if baseline_time is None:
+            baseline_time = elapsed_ms
+
+        speedup = baseline_time / elapsed_ms
+
+        timings.append((pool_size, elapsed_ms, speedup))
+
         print(
-            f"{'Array size':>14} | {'IPC Queue (ms)':>16} | "
-            f"{'Shared Memory (ms)':>19} | {'Faster path':>12}"
+            f"Pool size {pool_size:>3}: "
+            f"{elapsed_ms:>10.2f} ms | "
+            f"Speedup: {speedup:.2f}x"
         )
-        print("-" * 76)
 
-        for size in ARRAY_SIZES:
-            rng = np.random.default_rng(STUDENT_ID + size)
-            array = rng.integers(
-                1, 101, size=size, dtype=np.int64
-            )
+    # Find the first tested pool size that is slower
+    # than the immediately preceding pool size.
+    first_degradation = None
 
-            ipc_times = []
-            shared_times = []
+    for i in range(1, len(timings)):
+        previous_time = timings[i - 1][1]
+        current_time = timings[i][1]
 
-            for _ in range(REPEATS):
-                ipc_times.append(
-                    benchmark_ipc(array, input_queue, result_queue)
-                )
-                shared_times.append(
-                    benchmark_shared(
-                        array, input_queue, result_queue
-                    )
-                )
+        if current_time > previous_time:
+            first_degradation = timings[i][0]
+            break
 
-            ipc_ms = median(ipc_times)
-            shared_ms = median(shared_times)
+    print("\n" + "=" * 90)
+    print(
+        f"{'Pool Size':>12} | {'Execution Time (ms)':>20} | "
+        f"{'Speedup relative to 1 thread':>29} | {'Status':<20}"
+    )
+    print("-" * 90)
 
-            if ipc_ms < shared_ms:
-                faster = "IPC Queue"
-            elif shared_ms < ipc_ms:
-                faster = "Shared Memory"
-            else:
-                faster = "Equal"
+    output_lines = [
+        "TASK 5: THREAD OVERSUBSCRIPTION THRESHOLD",
+        f"Student ID: {STUDENT_ID}",
+        f"Physical cores: {PHYSICAL_CORES}",
+        f"Logical CPUs: {os.cpu_count()}",
+        f"Total tasks: {TOTAL_TASKS}",
+        f"Hashes per task: {HASH_ITERATIONS}",
+        "",
+        "Pool Size | Execution Time (ms) | Speedup | Status",
+    ]
 
-            results.append((size, ipc_ms, shared_ms, faster))
+    for i, (pool_size, elapsed_ms, speedup) in enumerate(timings):
+        if i == 0:
+            status = "BASELINE"
+        elif pool_size == first_degradation:
+            status = "FIRST DEGRADATION"
+        elif elapsed_ms > timings[i - 1][1]:
+            status = "SLOWER"
+        else:
+            status = "NO REGRESSION"
 
-            print(
-                f"{size:>14,} | {ipc_ms:>16.2f} | "
-                f"{shared_ms:>19.2f} | {faster:>12}"
-            )
+        print(
+            f"{pool_size:>12} | {elapsed_ms:>20.2f} | "
+            f"{speedup:>28.2f}x | {status:<20}"
+        )
 
-        print("=" * 76)
+        output_lines.append(
+            f"{pool_size} | {elapsed_ms:.2f} ms | "
+            f"{speedup:.2f}x | {status}"
+        )
 
-        output_path = Path(__file__).with_name("task4_output.txt")
-        with output_path.open("w", encoding="utf-8") as file:
-            file.write("TASK 4: MEMORY TRANSFER / IPC OVERHEAD\n")
-            file.write(f"Student ID: {STUDENT_ID}\n")
-            file.write(f"Logical CPUs: {os.cpu_count()}\n")
-            file.write(f"Measurements per size: {REPEATS}\n")
-            file.write("Times are medians in milliseconds.\n\n")
-            file.write(
-                "Array size | IPC Queue (ms) | Shared Memory (ms) "
-                "| Faster path\n"
-            )
+    if first_degradation is None:
+        threshold_message = (
+            "No degradation detected between adjacent tested pool sizes."
+        )
+    else:
+        threshold_message = (
+            f"First observed degradation: pool size {first_degradation}"
+        )
 
-            for size, ipc_ms, shared_ms, faster in results:
-                file.write(
-                    f"{size} | {ipc_ms:.2f} | "
-                    f"{shared_ms:.2f} | {faster}\n"
-                )
+    print("-" * 90)
+    print(threshold_message)
+    print("=" * 90)
 
-        print(f"Output saved to: {output_path}")
+    output_lines.extend(["", threshold_message])
 
-    finally:
-        input_queue.put(None)
-        worker.join()
-        input_queue.close()
-        result_queue.close()
+    output_path = Path(__file__).with_name("task5_output.txt")
+    output_path.write_text(
+        "\n".join(output_lines) + "\n",
+        encoding="utf-8",
+    )
+
+    print(f"Output saved to: {output_path}")
 
 
 if __name__ == "__main__":
-    mp.freeze_support()
     main()
