@@ -1,0 +1,11 @@
+TASK 3: PARALLEL PREFIX SCAN
+Student ID: 230103189
+Logical CPUs: 20
+Array size: 2000000
+Threads: 4
+Serial Time: 3.46 ms
+Parallel Time: 5.73 ms
+Speedup: 0.60x
+Verification: PASS
+Serial final sum: 10996860
+Parallel final sum: 10996860
