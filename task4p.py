@@ -321,138 +321,328 @@
 # =====================================================================================================
 # =======================================Task3==============================================================
 
-import os
-import sys
-import time
-from concurrent.futures import ThreadPoolExecutor
+# import os
+# import sys
+# import time
+# from concurrent.futures import ThreadPoolExecutor
+#
+# import numpy as np
+#
+# STUDENT_ID = 230103189
+# ARRAY_SIZE = 2_000_000
+# NUM_THREADS = 4
+#
+#
+# def compute_local_scan(chunk):
+#     """Pass 1: calculate each chunk's inclusive prefix sum."""
+#     local_output = np.cumsum(chunk, dtype=np.int64)
+#     chunk_sum = int(local_output[-1])
+#     return local_output, chunk_sum
+#
+#
+# def apply_offset(args):
+#     """Pass 2: add the prefix sum of all previous chunks."""
+#     local_output, offset = args
+#
+#     if offset != 0:
+#         local_output += offset
+#
+#     return local_output
+#
+#
+# def main():
+#     rng = np.random.default_rng(STUDENT_ID)
+#     data = rng.integers(
+#         1, 11, size=ARRAY_SIZE, dtype=np.int64
+#     )
+#
+#     chunks = [
+#         chunk for chunk in np.array_split(data, NUM_THREADS)
+#     ]
+#
+#     # Serial inclusive prefix sum
+#     start = time.perf_counter()
+#     serial_output = np.cumsum(data, dtype=np.int64)
+#     serial_time = (time.perf_counter() - start) * 1000
+#
+#     # Parallel chunked prefix scan
+#     start = time.perf_counter()
+#
+#     with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
+#         local_results = list(
+#             executor.map(compute_local_scan, chunks)
+#         )
+#
+#         local_outputs = [result[0] for result in local_results]
+#         chunk_sums = [result[1] for result in local_results]
+#
+#         # Offset reduction: calculate each chunk's starting offset
+#         offsets = []
+#         running_total = 0
+#
+#         for chunk_sum in chunk_sums:
+#             offsets.append(running_total)
+#             running_total += chunk_sum
+#
+#         # Apply offsets to local prefix sums in parallel
+#         parallel_output = list(
+#             executor.map(
+#                 apply_offset,
+#                 zip(local_outputs, offsets)
+#             )
+#         )
+#
+#     parallel_output = np.concatenate(parallel_output)
+#     parallel_time = (time.perf_counter() - start) * 1000
+#
+#     speedup = (
+#         serial_time / parallel_time
+#         if parallel_time > 0 else float("nan")
+#     )
+#
+#     # Verify the required final prefix sum
+#     verification = (
+#         parallel_output[-1] == serial_output[-1]
+#     )
+#
+#     print("=" * 65)
+#     print("TASK 3: PARALLEL PREFIX SCAN")
+#     print("=" * 65)
+#     print(f"Student ID       : {STUDENT_ID}")
+#     print(f"Logical CPUs     : {os.cpu_count()}")
+#     print(f"Array size       : {ARRAY_SIZE:,}")
+#     print(f"Threads          : {NUM_THREADS}")
+#     print("-" * 65)
+#     print(f"Serial Time      : {serial_time:.2f} ms")
+#     print(f"Parallel Time    : {parallel_time:.2f} ms")
+#     print(f"Speedup          : {speedup:.2f}x")
+#     print(
+#         f"Verification     : {'PASS' if verification else 'FAIL'}"
+#     )
+#     print(f"Serial final sum : {serial_output[-1]}")
+#     print(f"Parallel final   : {parallel_output[-1]}")
+#     print("=" * 65)
+#
+#     output_path = os.path.join(
+#         os.path.dirname(os.path.abspath(__file__)),
+#         "task3_output.txt"
+#     )
+#
+#     with open(output_path, "w", encoding="utf-8") as file:
+#         file.write("TASK 3: PARALLEL PREFIX SCAN\n")
+#         file.write(f"Student ID: {STUDENT_ID}\n")
+#         file.write(f"Logical CPUs: {os.cpu_count()}\n")
+#         file.write(f"Array size: {ARRAY_SIZE}\n")
+#         file.write(f"Threads: {NUM_THREADS}\n")
+#         file.write(f"Serial Time: {serial_time:.2f} ms\n")
+#         file.write(f"Parallel Time: {parallel_time:.2f} ms\n")
+#         file.write(f"Speedup: {speedup:.2f}x\n")
+#         file.write(
+#             f"Verification: {'PASS' if verification else 'FAIL'}\n"
+#         )
+#         file.write(f"Serial final sum: {serial_output[-1]}\n")
+#         file.write(f"Parallel final sum: {parallel_output[-1]}\n")
+#
+#     print(f"Output saved to: {output_path}")
+#
+#     try:
+#         assert parallel_output[-1] == serial_output[-1], (
+#             "Parallel final prefix sum does not match serial result!"
+#         )
+#     except AssertionError as error:
+#         print(f"ERROR: {error}", file=sys.stderr)
+#         raise SystemExit(1)
+#
+#
+# if __name__ == "__main__":
+#     main()
+# ============================================================================================================================================
+# =====================================================================================================
+# =====================================================================================================
+# =====================================================================================================
+# =======================================Task4==============================================================
 
+import multiprocessing as mp
+from multiprocessing import shared_memory
+from statistics import median
+from time import perf_counter
+from pathlib import Path
+import os
 import numpy as np
 
 STUDENT_ID = 230103189
-ARRAY_SIZE = 2_000_000
-NUM_THREADS = 4
+ARRAY_SIZES = [100_000, 1_000_000, 10_000_000]
+REPEATS = 3
 
 
-def compute_local_scan(chunk):
-    """Pass 1: calculate each chunk's inclusive prefix sum."""
-    local_output = np.cumsum(chunk, dtype=np.int64)
-    chunk_sum = int(local_output[-1])
-    return local_output, chunk_sum
+def receiver(input_queue, result_queue):
+    """Receive arrays using IPC or shared memory."""
+    while True:
+        message = input_queue.get()
+
+        if message is None:
+            break
+
+        mode, payload, shape = message
+
+        if mode == "ipc":
+            array = payload
+            checksum = int(np.sum(array, dtype=np.int64))
+
+        elif mode == "shared":
+            shm = shared_memory.SharedMemory(name=payload)
+            try:
+                array = np.ndarray(
+                    shape, dtype=np.int64, buffer=shm.buf
+                )
+                checksum = int(np.sum(array, dtype=np.int64))
+            finally:
+                shm.close()
+
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
+        result_queue.put(checksum)
 
 
-def apply_offset(args):
-    """Pass 2: add the prefix sum of all previous chunks."""
-    local_output, offset = args
+def benchmark_ipc(array, input_queue, result_queue):
+    """Measure sending a serialized array and receiving its acknowledgement."""
+    start = perf_counter()
 
-    if offset != 0:
-        local_output += offset
+    input_queue.put(("ipc", array, None))
+    received_checksum = result_queue.get()
 
-    return local_output
+    elapsed_ms = (perf_counter() - start) * 1000
+    expected_checksum = int(np.sum(array, dtype=np.int64))
+
+    assert received_checksum == expected_checksum
+    return elapsed_ms
+
+
+def benchmark_shared(array, input_queue, result_queue):
+    """Measure shared-memory allocation, copying, handoff and reading."""
+    shm = None
+
+    try:
+        start = perf_counter()
+
+        shm = shared_memory.SharedMemory(
+            create=True, size=array.nbytes
+        )
+
+        shared_array = np.ndarray(
+            array.shape, dtype=np.int64, buffer=shm.buf
+        )
+        shared_array[:] = array
+
+        input_queue.put(("shared", shm.name, array.shape))
+        received_checksum = result_queue.get()
+
+        elapsed_ms = (perf_counter() - start) * 1000
+        expected_checksum = int(np.sum(array, dtype=np.int64))
+
+        assert received_checksum == expected_checksum
+        return elapsed_ms
+
+    finally:
+        if shm is not None:
+            shm.close()
+            shm.unlink()
 
 
 def main():
-    rng = np.random.default_rng(STUDENT_ID)
-    data = rng.integers(
-        1, 11, size=ARRAY_SIZE, dtype=np.int64
+    ctx = mp.get_context("spawn")
+    input_queue = ctx.Queue()
+    result_queue = ctx.Queue()
+
+    worker = ctx.Process(
+        target=receiver,
+        args=(input_queue, result_queue)
     )
+    worker.start()
 
-    chunks = [
-        chunk for chunk in np.array_split(data, NUM_THREADS)
-    ]
-
-    # Serial inclusive prefix sum
-    start = time.perf_counter()
-    serial_output = np.cumsum(data, dtype=np.int64)
-    serial_time = (time.perf_counter() - start) * 1000
-
-    # Parallel chunked prefix scan
-    start = time.perf_counter()
-
-    with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-        local_results = list(
-            executor.map(compute_local_scan, chunks)
-        )
-
-        local_outputs = [result[0] for result in local_results]
-        chunk_sums = [result[1] for result in local_results]
-
-        # Offset reduction: calculate each chunk's starting offset
-        offsets = []
-        running_total = 0
-
-        for chunk_sum in chunk_sums:
-            offsets.append(running_total)
-            running_total += chunk_sum
-
-        # Apply offsets to local prefix sums in parallel
-        parallel_output = list(
-            executor.map(
-                apply_offset,
-                zip(local_outputs, offsets)
-            )
-        )
-
-    parallel_output = np.concatenate(parallel_output)
-    parallel_time = (time.perf_counter() - start) * 1000
-
-    speedup = (
-        serial_time / parallel_time
-        if parallel_time > 0 else float("nan")
-    )
-
-    # Verify the required final prefix sum
-    verification = (
-        parallel_output[-1] == serial_output[-1]
-    )
-
-    print("=" * 65)
-    print("TASK 3: PARALLEL PREFIX SCAN")
-    print("=" * 65)
-    print(f"Student ID       : {STUDENT_ID}")
-    print(f"Logical CPUs     : {os.cpu_count()}")
-    print(f"Array size       : {ARRAY_SIZE:,}")
-    print(f"Threads          : {NUM_THREADS}")
-    print("-" * 65)
-    print(f"Serial Time      : {serial_time:.2f} ms")
-    print(f"Parallel Time    : {parallel_time:.2f} ms")
-    print(f"Speedup          : {speedup:.2f}x")
-    print(
-        f"Verification     : {'PASS' if verification else 'FAIL'}"
-    )
-    print(f"Serial final sum : {serial_output[-1]}")
-    print(f"Parallel final   : {parallel_output[-1]}")
-    print("=" * 65)
-
-    output_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "task3_output.txt"
-    )
-
-    with open(output_path, "w", encoding="utf-8") as file:
-        file.write("TASK 3: PARALLEL PREFIX SCAN\n")
-        file.write(f"Student ID: {STUDENT_ID}\n")
-        file.write(f"Logical CPUs: {os.cpu_count()}\n")
-        file.write(f"Array size: {ARRAY_SIZE}\n")
-        file.write(f"Threads: {NUM_THREADS}\n")
-        file.write(f"Serial Time: {serial_time:.2f} ms\n")
-        file.write(f"Parallel Time: {parallel_time:.2f} ms\n")
-        file.write(f"Speedup: {speedup:.2f}x\n")
-        file.write(
-            f"Verification: {'PASS' if verification else 'FAIL'}\n"
-        )
-        file.write(f"Serial final sum: {serial_output[-1]}\n")
-        file.write(f"Parallel final sum: {parallel_output[-1]}\n")
-
-    print(f"Output saved to: {output_path}")
+    results = []
 
     try:
-        assert parallel_output[-1] == serial_output[-1], (
-            "Parallel final prefix sum does not match serial result!"
+        print("=" * 76)
+        print("TASK 4: MEMORY TRANSFER / IPC OVERHEAD")
+        print("=" * 76)
+        print(f"Student ID: {STUDENT_ID}")
+        print(f"Logical CPUs: {os.cpu_count()}")
+        print("Mode: CPU-only multiprocessing")
+        print(f"Measurement: median of {REPEATS} runs")
+        print("-" * 76)
+        print(
+            f"{'Array size':>14} | {'IPC Queue (ms)':>16} | "
+            f"{'Shared Memory (ms)':>19} | {'Faster path':>12}"
         )
-    except AssertionError as error:
-        print(f"ERROR: {error}", file=sys.stderr)
-        raise SystemExit(1)
+        print("-" * 76)
+
+        for size in ARRAY_SIZES:
+            rng = np.random.default_rng(STUDENT_ID + size)
+            array = rng.integers(
+                1, 101, size=size, dtype=np.int64
+            )
+
+            ipc_times = []
+            shared_times = []
+
+            for _ in range(REPEATS):
+                ipc_times.append(
+                    benchmark_ipc(array, input_queue, result_queue)
+                )
+                shared_times.append(
+                    benchmark_shared(
+                        array, input_queue, result_queue
+                    )
+                )
+
+            ipc_ms = median(ipc_times)
+            shared_ms = median(shared_times)
+
+            if ipc_ms < shared_ms:
+                faster = "IPC Queue"
+            elif shared_ms < ipc_ms:
+                faster = "Shared Memory"
+            else:
+                faster = "Equal"
+
+            results.append((size, ipc_ms, shared_ms, faster))
+
+            print(
+                f"{size:>14,} | {ipc_ms:>16.2f} | "
+                f"{shared_ms:>19.2f} | {faster:>12}"
+            )
+
+        print("=" * 76)
+
+        output_path = Path(__file__).with_name("task4_output.txt")
+        with output_path.open("w", encoding="utf-8") as file:
+            file.write("TASK 4: MEMORY TRANSFER / IPC OVERHEAD\n")
+            file.write(f"Student ID: {STUDENT_ID}\n")
+            file.write(f"Logical CPUs: {os.cpu_count()}\n")
+            file.write(f"Measurements per size: {REPEATS}\n")
+            file.write("Times are medians in milliseconds.\n\n")
+            file.write(
+                "Array size | IPC Queue (ms) | Shared Memory (ms) "
+                "| Faster path\n"
+            )
+
+            for size, ipc_ms, shared_ms, faster in results:
+                file.write(
+                    f"{size} | {ipc_ms:.2f} | "
+                    f"{shared_ms:.2f} | {faster}\n"
+                )
+
+        print(f"Output saved to: {output_path}")
+
+    finally:
+        input_queue.put(None)
+        worker.join()
+        input_queue.close()
+        result_queue.close()
 
 
 if __name__ == "__main__":
+    mp.freeze_support()
     main()

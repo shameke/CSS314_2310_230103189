@@ -1,0 +1,10 @@
+TASK 4: MEMORY TRANSFER / IPC OVERHEAD
+Student ID: 230103189
+Logical CPUs: 20
+Measurements per size: 3
+Times are medians in milliseconds.
+
+Array size | IPC Queue (ms) | Shared Memory (ms) | Faster path
+100000 | 1.92 | 1.16 | Shared Memory
+1000000 | 13.05 | 6.53 | Shared Memory
+10000000 | 133.59 | 56.04 | Shared Memory
